@@ -1,0 +1,9 @@
+/data
+/experiments
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+/wandb
+/datasets
