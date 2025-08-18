@@ -3,3 +3,7 @@ faiss-cpu
 transformers
 sentence-transformers
 datasets
+scikit-learn
+matplotlib
+plotly
+pandas 
