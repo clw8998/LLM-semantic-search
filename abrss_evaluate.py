@@ -22,7 +22,7 @@ def evaluate(test_query_path, product_collection_path, qrels_path):
         qrels_path=qrels_path
     )
 
-    batch_size = config.eval_batch_size
+    batch_size = 32
     print("evaluation batch_size:", batch_size)
 
     evaluator = IREvaluator(

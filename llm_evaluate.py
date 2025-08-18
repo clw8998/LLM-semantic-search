@@ -54,7 +54,7 @@ def evaluate(test_query_path, product_collection_path, qrels_path):
         qrels_path=qrels_path
     )
 
-    batch_size = config.eval_batch_size
+    batch_size = 32
     print("evaluation batch_size:", batch_size)
 
     evaluator = IREvaluator(
@@ -78,7 +78,7 @@ def evaluate(test_query_path, product_collection_path, qrels_path):
     
     query_embeddings = model.encode(
         sentences=query_sentences,
-        batch_size=32,
+        batch_size=batch_size,
         normalize_embeddings=True,
         prompt_name="query" if model.prompts and 'query' in model.prompts else None,
     )
@@ -88,7 +88,7 @@ def evaluate(test_query_path, product_collection_path, qrels_path):
     
     product_embeddings = model.encode(
         sentences=name_sentences,
-        batch_size=32,
+        batch_size=batch_size,
         normalize_embeddings=True,
         show_progress_bar=True,
         prompt_name="passage" if model.prompts and 'passage' in model.prompts else None,
