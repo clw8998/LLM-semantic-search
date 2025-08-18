@@ -1,6 +1,170 @@
 import faiss
 from sentence_transformers import SentenceTransformer
 import torch
+import numpy as np
+from sklearn.manifold import TSNE
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+
+ENABLE_TSNE = True
+
+def visualize_with_tsne(
+    emb, q_vec, labels,
+    topk_indices=None,
+    query_text=None,
+    random_state: int = 42,
+    save_path: str = "tsne.html",
+):
+    X = np.vstack([emb.astype(np.float32), q_vec.astype(np.float32)])
+    n = X.shape[0]
+    perplexity = max(5, min(30, (n - 1) // 3))
+    Y = TSNE(n_components=2, init="pca", learning_rate="auto",
+             perplexity=perplexity, random_state=random_state).fit_transform(X)
+    Yc, Yq = Y[:-1], Y[-1]
+
+    emb_u = emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-12)
+    q_u   = (q_vec.reshape(1, -1) /
+             (np.linalg.norm(q_vec) + 1e-12))
+    sims  = (emb_u @ q_u.ravel())
+    order = np.argsort(-sims)
+    ranks_by_index = np.empty(len(emb), dtype=int)
+    ranks_by_index[order] = np.arange(1, len(emb) + 1)
+    rank_strs = [str(r) for r in ranks_by_index]
+
+    df = pd.DataFrame({"x": Yc[:, 0], "y": Yc[:, 1], "name": labels, "rank": ranks_by_index})
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.5, 0.5],
+        specs=[[{"type": "xy"}, {"type": "table"}]],
+        horizontal_spacing=0.06,
+        subplot_titles=("t-SNE result", "Items")
+    )
+
+    fig.add_trace(go.Scattergl(
+        x=df["x"], y=df["y"],
+        mode="markers",
+        marker=dict(size=10, color="rgba(0,0,0,0)"),
+        text=df["name"],
+        hovertemplate="%{text}<extra></extra>",
+        showlegend=False
+    ), row=1, col=1)
+
+    idx_list = [] if topk_indices is None else np.asarray(topk_indices).ravel().astype(int).tolist()
+    topk_set = set(idx_list)
+    if idx_list:
+        dft = df.iloc[list(topk_set)]
+        fig.add_trace(go.Scattergl(
+            x=dft["x"], y=dft["y"],
+            mode="markers",
+            marker=dict(size=16, color="rgba(0,0,0,0)",
+                        line=dict(width=1.8, color="black")),
+            text=dft["name"],
+            hovertemplate="%{text}<extra>Top-K</extra>",
+            showlegend=False
+        ), row=1, col=1)
+
+    fig.add_trace(go.Scattergl(
+        x=[Yq[0]], y=[Yq[1]],
+        mode="markers",
+        marker=dict(symbol="star", size=18),
+        hovertemplate=(query_text or "") + "<extra></extra>",
+        showlegend=False
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["x"], y=df["y"],
+        mode="text",
+        text=rank_strs,
+        textposition="middle center",
+        textfont=dict(size=12),
+        hoverinfo="skip",
+        showlegend=False
+    ), row=1, col=1)
+
+    tbl_order = order.tolist()
+    tbl_names = [labels[i] for i in tbl_order]
+    tbl_ranks = [str(ranks_by_index[i]) for i in tbl_order]
+
+    base_fill = ["white"] * len(tbl_order)
+    fill_cols = [base_fill.copy(), base_fill.copy()]
+
+    fig.add_trace(go.Table(
+        header=dict(
+            values=["Top-K", "商品名稱"],
+            fill_color="#e9ecef",
+            align=["center", "left"],
+            font=dict(size=11, color="black")
+        ),
+        cells=dict(
+            values=[tbl_ranks, tbl_names],
+            fill_color=fill_cols,
+           align=["center", "left"],
+            height=24,
+            font=dict(size=10)
+        ),
+        columnwidth=[1, 9],
+        name="items"
+    ), row=1, col=2)
+
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode="markers+text",
+        marker=dict(size=22, color="rgba(0,0,0,0)",
+                    line=dict(width=2, color="#2b8a3e")),
+        text=[""], textposition="middle center",
+        hoverinfo="skip",
+        showlegend=False
+    ), row=1, col=1)
+
+    fig.update_layout(showlegend=False, margin=dict(l=30, r=20, t=60, b=30), height=640)
+
+    html = fig.to_html(include_plotlyjs="cdn", full_html=True)
+    html += f"""
+        <script>
+        (function(){{
+        const gd = document.querySelector('div.js-plotly-plot');
+        const hoverIdx=0, rankTextIdx= {2 if not idx_list else 3}, tableIdx={3 if not idx_list else 4}, selectIdx={4 if not idx_list else 5};
+
+        const tblOrder = {tbl_order};
+        const rankOf   = {ranks_by_index.tolist()};
+
+        function colorizeRowByRowIndex(row){{
+            const n = gd.data[tableIdx].cells.values[0].length;
+            const base = new Array(n).fill('white'), hi = '#fff3bf';
+            if (row>=0 && row<n) base[row] = hi;
+            Plotly.restyle(gd, {{'cells.fill.color': [ [base, base] ]}}, [tableIdx]);
+        }}
+
+        function highlightByOrigIndex(origIdx){{
+            const xs = gd.data[hoverIdx].x, ys = gd.data[hoverIdx].y;
+            const label = String(rankOf[origIdx] || "");
+            Plotly.restyle(gd, {{x:[[xs[origIdx]]], y:[[ys[origIdx]]], text:[[label]]}}, [selectIdx]);
+
+            const row = tblOrder.indexOf(origIdx);
+            colorizeRowByRowIndex(row);
+        }}
+
+        gd.on('plotly_click', function(ev){{
+            const p = ev.points && ev.points[0]; if(!p) return;
+
+            if (p.curveNumber===hoverIdx || p.curveNumber===rankTextIdx){{
+            const origIdx = p.pointIndex ?? p.pointNumber;
+            highlightByOrigIndex(origIdx);
+            }}
+
+            if (p.curveNumber===tableIdx || (gd.data[p.curveNumber].type==='table')){{
+            const row = p.pointNumber, origIdx = tblOrder[row];
+            highlightByOrigIndex(origIdx);
+            }}
+        }});
+        }})();
+        </script>
+        """
+    with open(save_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    return fig
 
 corpus = [
     "NWT 威技 14吋日本DC變頻馬達節能電風扇 WPF-14P7",
@@ -28,7 +192,6 @@ corpus = [
 ]
 
 # To access the model, please visit https://huggingface.co/clw8998/ABRSS and submit a request for access
-
 model = SentenceTransformer(
     model_name_or_path="clw8998/ABRSS",
     trust_remote_code=True,
@@ -60,3 +223,13 @@ D, I = index.search(q_vec, 10)
 print("\nTop-10 Results:")
 for score, idx in zip(D[0], I[0]):
     print(f"{score:>6.4f} │ {corpus[idx]}")
+
+if ENABLE_TSNE:
+    visualize_with_tsne(
+        emb=emb,
+        q_vec=q_vec,
+        labels=corpus,
+        topk_indices=I[0],
+        query_text=query,
+        save_path="tsne.html",
+    )
