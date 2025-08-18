@@ -1,16 +1,16 @@
 import torch
 from datasets import load_dataset, Dataset
 import numpy as np
-import distill_config
+import config
 from sentence_transformers import SentenceTransformer
 
-distill_config.set_seed()
+config.set_seed()
 
 print('create_distillation_dataset.py ...')
 
 ds = load_dataset(
     "parquet",
-    data_files=distill_config.train_data_raw_path,
+    data_files=config.train_data_raw_path,
     split="train",
     keep_in_memory=False
 )
@@ -40,8 +40,8 @@ for example in train_dataset:
     all_rows.extend([{"sentence": neg} for neg in example["negative"]])
 
 
-if distill_config.use_llm_prompt:
-    train_dataset = train_dataset.map(distill_config.add_llm_prompts)
+if config.use_llm_prompt:
+    train_dataset = train_dataset.map(config.add_llm_prompts)
 
 print("Train dataset size:", len(train_dataset))
 
@@ -68,9 +68,9 @@ print("Train dataset size after merging:", len(train_dataset))
 model_kwargs = {"torch_dtype": torch.bfloat16}
 
 teacher_model = SentenceTransformer(
-    model_name_or_path=distill_config.teacher_model_name,
+    model_name_or_path=config.teacher_model_name,
     trust_remote_code=True,
-    device=distill_config.device,
+    device=config.device,
     truncate_dim=1024,
     model_kwargs=model_kwargs,
 )
@@ -101,7 +101,7 @@ assert len(all_labels) == num_samples
 
 train_dataset = train_dataset.add_column("label", all_labels)
 train_dataset = train_dataset.remove_columns(["prompted_sentence"])
-train_dataset.save_to_disk(distill_config.distillation_train_data_path)
+train_dataset.save_to_disk(config.distillation_train_data_path)
 
 del teacher_model
 import gc

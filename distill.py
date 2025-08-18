@@ -2,7 +2,7 @@ import torch
 from datasets import Dataset
 import os
 from utils.ir_evaluation import format_test_collection, IREvaluator
-import distill_config
+import config
 from sentence_transformers import util, SentenceTransformer, SentenceTransformerTrainer, SentenceTransformerTrainingArguments, models
 from sentence_transformers.training_args import BatchSamplers, MultiDatasetBatchSamplers
 from utils.loss.loss_mse import MSELoss
@@ -10,15 +10,15 @@ from utils.loss.loss_mse import MSELoss
 os.environ["WANDB_DISABLED"] = "true" # Set to "false" to enable Weights & Biases logging
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-distill_config.set_seed()
+config.set_seed()
 print('distill.py ...')
 
 model_kwargs = None
 
 student_model = SentenceTransformer(
-    distill_config.student_model_name,
+    config.student_model_name,
     trust_remote_code=True,
-    device=distill_config.device,
+    device=config.device,
     model_kwargs=model_kwargs,
 )
 
@@ -29,7 +29,7 @@ modules.append(normalize)
 student_model = SentenceTransformer(
     modules=modules,
     trust_remote_code=True,
-    device=distill_config.device,
+    device=config.device,
     model_kwargs=model_kwargs,
 )
     
@@ -38,7 +38,7 @@ for name, module in student_model._modules.items():
 
 # bert:
 auto_model = student_model._first_module().auto_model
-layers_to_keep = distill_config.layers_to_keep
+layers_to_keep = config.layers_to_keep
 new_layers = torch.nn.ModuleList(
     [layer_module for i, layer_module in enumerate(auto_model.encoder.layer) if i in layers_to_keep]
 )
@@ -46,18 +46,18 @@ auto_model.encoder.layer = new_layers
 auto_model.config.num_hidden_layers = len(layers_to_keep)
 
 
-model = student_model.to(torch.device(distill_config.device))
+model = student_model.to(torch.device(config.device))
 
-if distill_config.use_llm_prompt and (model.prompts == None or model.prompts == {}):
-    model.prompts = distill_config.llm_prompts
+if config.use_llm_prompt and (model.prompts == None or model.prompts == {}):
+    model.prompts = config.llm_prompts
     print("Using prompts:", model.prompts)
 
-train_dataset = Dataset.load_from_disk(distill_config.distillation_train_data_path)
+train_dataset = Dataset.load_from_disk(config.distillation_train_data_path)
 
 queries, product_collection, qrels_df, qrels_binary = format_test_collection(
-    test_query_path=distill_config.valid_query_path,
-    product_collection_path=distill_config.valid_product_collection_path,
-    qrels_path=distill_config.valid_qrels_path,
+    test_query_path=config.valid_query_path,
+    product_collection_path=config.valid_product_collection_path,
+    qrels_path=config.valid_qrels_path,
 )
 
 evaluator = IREvaluator(
@@ -76,20 +76,20 @@ evaluator = IREvaluator(
     main_score_function='cos_sim',
 )
 
-if distill_config.loss == 'MSELoss':
+if config.loss == 'MSELoss':
     loss = MSELoss(model, 1)
 
-run_name = distill_config.exp_name
+run_name = config.exp_name
 
 print("student model dimension:", model.get_sentence_embedding_dimension())
 
 args = SentenceTransformerTrainingArguments(
     output_dir=f"experiments/{run_name}",
-    num_train_epochs=distill_config.epochs,
-    per_device_train_batch_size=distill_config.batch_size,
-    per_device_eval_batch_size=distill_config.batch_size,
-    learning_rate=distill_config.learning_rate,
-    lr_scheduler_type=distill_config.lr_scheduler_type,
+    num_train_epochs=config.epochs,
+    per_device_train_batch_size=config.batch_size,
+    per_device_eval_batch_size=config.batch_size,
+    learning_rate=config.learning_rate,
+    lr_scheduler_type=config.lr_scheduler_type,
     batch_sampler=BatchSamplers.NO_DUPLICATES,
     multi_dataset_batch_sampler=MultiDatasetBatchSamplers.PROPORTIONAL,
     eval_strategy="epoch",

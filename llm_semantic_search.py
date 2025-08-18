@@ -1,7 +1,7 @@
 import faiss
 from sentence_transformers import SentenceTransformer
 import torch
-import distill_config
+import config
 
 corpus = [
     "NWT 威技 14吋日本DC變頻馬達節能電風扇 WPF-14P7",
@@ -36,7 +36,7 @@ model = SentenceTransformer(
     model_kwargs={"torch_dtype": torch.bfloat16},
 )
 
-model.prompts = distill_config.llm_prompts
+model.prompts = config.llm_prompts
 
 emb = model.encode(
     corpus,
