@@ -1,14 +1,10 @@
 import torch
 from datasets import Dataset
 import os
-
 from utils.ir_evaluation import format_test_collection, IREvaluator
 import distill_config
-
 from sentence_transformers import util, SentenceTransformer, SentenceTransformerTrainer, SentenceTransformerTrainingArguments, models
 from sentence_transformers.training_args import BatchSamplers, MultiDatasetBatchSamplers
-import wandb
-
 from utils.loss.loss_mse import MSELoss
 
 os.environ["WANDB_DISABLED"] = "true" # Set to "false" to enable Weights & Biases logging

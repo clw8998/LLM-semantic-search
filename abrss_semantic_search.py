@@ -27,17 +27,18 @@ corpus = [
     "Google Pixel 7a (8G/128G) 6.1 吋（福利品）"
 ]
 
+# To access the model, please visit https://huggingface.co/clw8998/ABRSS and submit a request for access
+
 model = SentenceTransformer(
-    model_name_or_path="Qwen/Qwen3-Embedding-8B",
+    model_name_or_path="clw8998/ABRSS",
     trust_remote_code=True,
     device="cuda",
-    truncate_dim=1024,
-    model_kwargs={"torch_dtype": torch.bfloat16},
+    truncate_dim=768,
 )
 
 emb = model.encode(
     corpus,
-    batch_size=16,
+    batch_size=32,
     convert_to_tensor=True,
     show_progress_bar=True
 ).to(torch.float32).cpu().numpy()
@@ -47,8 +48,12 @@ dim = emb.shape[1]
 index = faiss.IndexFlatIP(dim)
 index.add(emb)
 
-query = "Android"
-q_vec = model.encode(query, convert_to_tensor=True).to(torch.float32).cpu().numpy().reshape(1, -1)
+query = "安卓手機"
+q_vec = model.encode(
+    query,
+    convert_to_tensor=True,
+).to(torch.float32).cpu().numpy().reshape(1, -1)
+
 faiss.normalize_L2(q_vec)
 D, I = index.search(q_vec, 10)
 
