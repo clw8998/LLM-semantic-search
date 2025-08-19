@@ -6,4 +6,5 @@ datasets
 scikit-learn
 matplotlib
 plotly
-pandas 
+pandas
+seaborn
