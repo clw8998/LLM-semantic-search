@@ -60,8 +60,8 @@ teacher_model_name = "Qwen/Qwen3-Embedding-8B"
 student_model_name = "ckiplab/bert-base-chinese"
 use_non_pretrained_model = False
 
-# layers_to_keep = [0, 5, 11]
-layers_to_keep = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+layers_to_keep = [0, 5, 11]
+# layers_to_keep = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 # CONFIG
 experiments_folder = './experiments/'
