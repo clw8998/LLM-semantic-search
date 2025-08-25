@@ -22,17 +22,15 @@ student_model = SentenceTransformer(
     model_kwargs=model_kwargs,
 )
 
-normalize = models.Normalize()
-modules = list(student_model._modules.values())
-modules.append(normalize)     
-
-student_model = SentenceTransformer(
-    modules=modules,
-    trust_remote_code=True,
-    device=config.device,
-    model_kwargs=model_kwargs,
+transformer = student_model._first_module()
+student_model.add_module(
+    "pooling",
+    models.Pooling(
+        word_embedding_dimension=transformer.get_word_embedding_dimension(),
+        pooling_mode="mean",
+    ),
 )
-    
+
 for name, module in student_model._modules.items():
     print(f"name: {name}, type: {type(module)}")
 
